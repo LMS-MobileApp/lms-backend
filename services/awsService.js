@@ -1,7 +1,7 @@
 import AWS from "aws-sdk";
 import { config } from "../config.js";
 
-// Log for debugging
+// Log AWS config
 console.log("AWS Config:", {
   region: config.AWS_REGION,
   accessKeyId: config.AWS_ACCESS_KEY_ID,
@@ -23,11 +23,13 @@ const uploadToS3 = async (file, folder) => {
       Key: `${folder}/${Date.now()}-${file.originalname}`,
       Body: file.buffer,
       ContentType: file.mimetype,
+      ACL: "public-read", // Ensures files are publicly accessible
     };
     console.log("S3 Upload Params:", {
       Bucket: params.Bucket,
       Key: params.Key,
       ContentType: params.ContentType,
+      ACL: params.ACL,
     });
 
     const result = await s3.upload(params).promise();

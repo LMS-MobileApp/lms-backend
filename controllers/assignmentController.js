@@ -3,7 +3,6 @@ import User from "../models/User.js";
 import { uploadToS3, getFileUrl } from "../services/awsService.js";
 import sendEmail from "../services/emailService.js";
 
-// Create Assignment (Admin only)
 const createAssignment = async (req, res) => {
   const { title, course, subject, dueDate, dueTime, priority } = req.body;
   const pdf = req.file;
@@ -29,16 +28,18 @@ const createAssignment = async (req, res) => {
 
     await assignment.save();
 
-    // Send email to students (optional)
     const students = await User.find({ course, role: "student" });
     const studentEmails = students.map((student) => student.email);
     if (studentEmails.length > 0) {
       try {
-        await sendEmail(
-          studentEmails,
-          `New Assignment: ${title}`,
-          `A new assignment "${title}" has been created for ${course} - ${subject}. Due: ${dueDate} at ${dueTime}. Download: ${pdfUrl}`
-        );
+        await sendEmail(studentEmails, `New Assignment: ${title}`, {
+          message: `A new assignment "${title}" has been created for your course.`,
+          course,
+          subject,
+          dueDate,
+          dueTime,
+          priority,
+        });
       } catch (emailErr) {
         console.error("Failed to send email notification:", emailErr);
       }
@@ -51,7 +52,6 @@ const createAssignment = async (req, res) => {
   }
 };
 
-// Get All Assignments (Filtered for students/admins)
 const getAssignments = async (req, res) => {
   const { status, course, subject } = req.query;
 
@@ -72,7 +72,6 @@ const getAssignments = async (req, res) => {
   }
 };
 
-// Update Assignment (Admin only)
 const updateAssignment = async (req, res) => {
   const { id } = req.params;
   const { title, course, subject, dueDate, dueTime, priority, status } = req.body;
@@ -103,7 +102,6 @@ const updateAssignment = async (req, res) => {
   }
 };
 
-// Delete Assignment (Admin only)
 const deleteAssignment = async (req, res) => {
   const { id } = req.params;
 
@@ -125,7 +123,6 @@ const deleteAssignment = async (req, res) => {
   }
 };
 
-// Submit Assignment (Student only)
 const submitAssignment = async (req, res) => {
   const { id } = req.params;
   const submission = req.file;
@@ -154,13 +151,15 @@ const submitAssignment = async (req, res) => {
 
     await assignment.save();
 
-    // Send confirmation email (optional)
     try {
-      await sendEmail(
-        req.user.email,
-        `Assignment Submitted: ${assignment.title}`,
-        `Your assignment "${assignment.title}" has been submitted successfully. View your submission: ${submissionUrl}`
-      );
+      await sendEmail(req.user.email, `Assignment Submitted: ${assignment.title}`, {
+        message: `Your assignment "${assignment.title}" has been submitted successfully.`,
+        course: assignment.course,
+        subject: assignment.subject,
+        dueDate: assignment.dueDate,
+        dueTime: assignment.dueTime,
+        priority: assignment.priority,
+      });
     } catch (emailErr) {
       console.error("Failed to send submission email:", emailErr);
     }

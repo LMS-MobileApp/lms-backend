@@ -1,9 +1,9 @@
-import User from "../models/User.js";
 import jwt from "jsonwebtoken";
+import User from "../models/User.js";
+import { config } from "../config.js";
 
-// Register a new user (student or admin)
 const register = async (req, res) => {
-  const { name, email, password, batch, regNo, course, role } = req.body;
+  const { name, email, password, course, batch, regNo, role } = req.body;
 
   try {
     let user = await User.findOne({ email });
@@ -11,72 +11,40 @@ const register = async (req, res) => {
       return res.status(400).json({ message: "User already exists" });
     }
 
-    user = new User({
-      name,
-      email,
-      password,
-      batch: role === "student" ? batch : undefined,
-      regNo: role === "student" ? regNo : undefined,
-      course: role === "student" ? course : undefined,
-      role: role || "student", // Default to student if not specified
-    });
-
+    user = new User({ name, email, password, course, batch, regNo, role });
     await user.save();
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "1h",
-    });
-
-    res.status(201).json({
-      token,
-      user: { id: user._id, name, email, role: user.role },
-    });
+    const token = jwt.sign({ id: user._id }, config.JWT_SECRET, { expiresIn: "1h" });
+    res.status(201).json({ token });
   } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
+    console.error("Register Error:", err);
+    res.status(500).json({ message: "Server error" });
   }
 };
 
-// Login user
 const login = async (req, res) => {
   const { email, password } = req.body;
 
   try {
     const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(400).json({ message: "Invalid credentials" });
+    if (!user || !(await user.matchPassword(password))) {
+      return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    const isMatch = await user.matchPassword(password);
-    if (!isMatch) {
-      return res.status(400).json({ message: "Invalid credentials" });
-    }
-
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "1h",
-    });
-
-    res.json({
-      token,
-      user: { id: user._id, name: user.name, email, role: user.role },
-    });
+    const token = jwt.sign({ id: user._id }, config.JWT_SECRET, { expiresIn: "1h" });
+    res.json({ token });
   } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
+    console.error("Login Error:", err);
+    res.status(500).json({ message: "Server error" });
   }
 };
 
-// Get user profile
 const getProfile = async (req, res) => {
-  try {
-    const user = await User.findById(req.user._id).select("-password");
-    res.json(user);
-  } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
-  }
+  res.json(req.user);
 };
 
-// Update user profile
 const updateProfile = async (req, res) => {
-  const { name, email, batch, regNo, course } = req.body;
+  const { name, email, course, batch, regNo } = req.body;
 
   try {
     const user = await User.findById(req.user._id);
@@ -86,16 +54,15 @@ const updateProfile = async (req, res) => {
 
     user.name = name || user.name;
     user.email = email || user.email;
-    if (user.role === "student") {
-      user.batch = batch || user.batch;
-      user.regNo = regNo || user.regNo;
-      user.course = course || user.course;
-    }
+    user.course = course || user.course;
+    user.batch = batch || user.batch;
+    user.regNo = regNo || user.regNo;
 
     await user.save();
-    res.json({ message: "Profile updated", user });
+    res.json(user);
   } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
+    console.error("Update Profile Error:", err);
+    res.status(500).json({ message: "Server error" });
   }
 };
 

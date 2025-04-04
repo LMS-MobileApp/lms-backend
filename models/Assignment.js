@@ -5,16 +5,16 @@ const assignmentSchema = new mongoose.Schema({
   course: { type: String, required: true },
   subject: { type: String, required: true },
   dueDate: { type: Date, required: true },
-  dueTime: { type: String, required: true }, // e.g., "14:30"
+  dueTime: { type: String, required: true }, 
   priority: { type: String, enum: ["low", "medium", "high"], default: "medium" },
   status: { type: String, enum: ["pending", "completed"], default: "pending" },
-  pdfUrl: { type: String }, // URL to S3-stored assignment PDF
-  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true }, // Admin who created it
+  pdfUrl: { type: String }, 
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true }, 
   submissions: [
     {
       student: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
       submittedAt: { type: Date, default: Date.now },
-      submissionUrl: { type: String }, // URL to S3-stored submission (PDF/link)
+      submissionUrl: { type: String },
     },
   ],
   createdAt: { type: Date, default: Date.now },

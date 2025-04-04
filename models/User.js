@@ -5,11 +5,11 @@ const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
-  batch: { type: String }, // Optional for students, null for admins
-  regNo: { type: String, unique: true, sparse: true }, // Unique for students, null for admins
-  course: { type: String }, // Optional for students
+  batch: { type: String }, 
+  regNo: { type: String, unique: true, sparse: true }, 
+  course: { type: String }, 
   role: { type: String, enum: ["student", "admin"], default: "student" },
-  profilePicture: { type: String }, // URL to S3-stored image
+  profilePicture: { type: String }, 
   createdAt: { type: Date, default: Date.now },
 });
 
