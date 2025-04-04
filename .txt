@@ -1,0 +1,29 @@
+
+                    
+                    .env file ekak hadagena mewa daganna ekata
+
+# Server
+PORT=5001
+
+# MongoDB
+MONGO_URI=mongodb://localhost:27017/lms-app
+
+# JWT
+JWT_SECRET=1a4b8f3fd3d91a7ec26be25903879b0153797cc951ea8f789fef311e65e47f3b
+
+# AWS S3
+AWS_BUCKET_NAME=
+AWS_REGION=
+AWS_ACCESS_KEY=
+AWS_SECRET_KEY=
+
+# Email (Nodemailer)    do not use this Keys for bad things
+EMAIL_USER=d1611841@gmail.com
+EMAIL_PASS=cvvg lcgl wijx frie
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+
+# OpenAI GPT 
+GPT_TOKEN=
+GPT_ENDPOINT=
+GPT_MODEL=gpt-4o
