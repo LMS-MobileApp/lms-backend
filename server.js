@@ -1,15 +1,14 @@
+import { config } from "./config.js"; // Must be the first import
 import express from "express";
-import dotenv from "dotenv";
 import mongoose from "mongoose";
 import swaggerUi from "swagger-ui-express";
 import yaml from "yamljs";
 import User from "./models/User.js";
-import authRoutes from "./routes/authRoutes.js"; // Import auth routes
-
-dotenv.config();
+import authRoutes from "./routes/authRoutes.js";
+import assignmentRoutes from "./routes/assignmentRoutes.js";
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = config.PORT;
 
 // Middleware
 app.use(express.json());
@@ -34,7 +33,7 @@ const seedAdmin = async () => {
 };
 
 mongoose
-  .connect(process.env.MONGO_URI, {
+  .connect(config.MONGO_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
   })
@@ -49,7 +48,8 @@ const swaggerDoc = yaml.load("./swagger.yaml");
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDoc));
 
 // Routes
-app.use("/api/auth", authRoutes); // Add auth routes
+app.use("/api/auth", authRoutes);
+app.use("/api/assignments", assignmentRoutes);
 
 // Test Route
 app.get("/", (req, res) => {
