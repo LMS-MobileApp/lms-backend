@@ -2,7 +2,7 @@ import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import { config } from "../config.js";
 
-const auth = async (req, res, next) => {
+export const auth = async (req, res, next) => {
   try {
     const token = req.header("Authorization")?.replace("Bearer ", "");
     if (!token) {
@@ -16,14 +16,15 @@ const auth = async (req, res, next) => {
       return res.status(401).json({ message: "Invalid token" });
     }
 
-    req.user = user;
+    req.user = user; // Attach user to request
     next();
   } catch (err) {
+    console.error("Authentication Error:", err);
     res.status(401).json({ message: "Authentication failed" });
   }
 };
 
-const restrictTo = (...roles) => {
+export const restrictTo = (...roles) => {
   return (req, res, next) => {
     if (!roles.includes(req.user.role)) {
       return res.status(403).json({ message: "Access denied" });
@@ -31,5 +32,3 @@ const restrictTo = (...roles) => {
     next();
   };
 };
-
-export { auth, restrictTo };

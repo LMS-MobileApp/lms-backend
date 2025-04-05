@@ -1,9 +1,8 @@
 import nodemailer from "nodemailer";
 import { config } from "../config.js";
-import fs from "fs/promises"; // For reading the template file
+import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
-
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,18 +12,18 @@ console.log("Email Config:", {
   host: config.EMAIL_HOST,
   port: config.EMAIL_PORT,
   user: config.EMAIL_USER,
-  pass: config.EMAIL_PASS,
+  pass: config.EMAIL_PASS ? "[REDACTED]" : undefined,
 });
 
 const transporter = nodemailer.createTransport({
   host: config.EMAIL_HOST,
   port: parseInt(config.EMAIL_PORT, 10),
-  secure: false, 
+  secure: false,
   auth: {
     user: config.EMAIL_USER,
     pass: config.EMAIL_PASS,
   },
-  family: 4, 
+  family: 4,
   tls: {
     rejectUnauthorized: true,
   },
@@ -53,27 +52,20 @@ const renderTemplate = async (templateName, data) => {
   return template;
 };
 
-const sendEmail = async (to, subject, data) => {
+// General send email function
+const sendEmail = async (to, subject, data, templateName = "assignmentNotification") => {
   try {
     if (!config.EMAIL_USER || !config.EMAIL_PASS) {
       throw new Error("Email credentials are not configured");
     }
 
-    const html = await renderTemplate("assignmentNotification", {
-      title: subject,
-      message: data.message,
-      course: data.course,
-      subject: data.subject,
-      dueDate: data.dueDate,
-      dueTime: data.dueTime,
-      priority: data.priority,
-    });
+    const html = await renderTemplate(templateName, data);
 
     const mailOptions = {
       from: config.EMAIL_USER,
       to,
       subject,
-      html, // Use HTML instead of plain text
+      html,
     };
 
     console.log("Sending email with options:", mailOptions);
@@ -84,6 +76,17 @@ const sendEmail = async (to, subject, data) => {
     console.error("Email sending error:", err);
     throw err;
   }
+};
+
+// Specific function for submission confirmation
+export const sendSubmissionConfirmation = async (to, assignmentTitle, submittedAt) => {
+  const data = {
+    title: "Assignment Submission Confirmation",
+    message: `Your assignment "${assignmentTitle}" has been successfully submitted on ${submittedAt}.`,
+    assignmentTitle,
+    submittedAt,
+  };
+  return sendEmail(to, "Assignment Submission Confirmation", data, "submissionConfirmation");
 };
 
 export default sendEmail;

@@ -12,6 +12,7 @@ import authRoutes from "./routes/authRoutes.js";
 import assignmentRoutes from "./routes/assignmentRoutes.js";
 import groupChatRoutes from "./routes/groupChatRoutes.js";
 import noteRoutes from "./routes/noteRoutes.js";
+import chatRoutes from "./routes/chatRoutes.js";
 
 
 const app = express();
@@ -142,6 +143,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/assignments", assignmentRoutes);
 app.use("/api/group-chats", groupChatRoutes);
 app.use("/api/notes", noteRoutes);
+app.use("/api/chat", chatRoutes);
 
 // Test Route
 app.get("/", (req, res) => {

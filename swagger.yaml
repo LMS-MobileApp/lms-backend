@@ -949,14 +949,11 @@
 
 
 
-
-
-
 openapi: 3.0.3
 info:
   title: LMS Backend API
   description: |
-    API for a Learning Management System with authentication, assignments, group chat, and note features.
+    API for a Learning Management System with authentication, assignments, group chat, note features, and a chatbot.
     Note: Real-time messaging uses Socket.IO (e.g., `sendMessage` event) and is not documented here.
     Use the REST endpoint `POST /api/group-chats/{groupChatId}/messages` for Swagger-testable messaging.
   version: 1.0.0
@@ -1184,6 +1181,7 @@ paths:
                 pdf:
                   type: string
                   format: binary
+                  description: PDF file of the assignment (max 5MB)
               required:
                 - title
                 - course
@@ -1199,7 +1197,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Assignment'
         '400':
-          description: PDF file is required
+          description: PDF file is required or invalid
           content:
             application/json:
               schema:
@@ -1282,6 +1280,7 @@ paths:
             type: string
           description: Assignment ID (e.g., 67f02df8020c2886cd44c047)
       requestBody:
+        required: false
         content:
           application/json:
             schema:
@@ -1325,7 +1324,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '403':
-          description: Not authorized
+          description: Access denied (not admin)
           content:
             application/json:
               schema:
@@ -1373,7 +1372,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '403':
-          description: Not authorized
+          description: Access denied (not admin)
           content:
             application/json:
               schema:
@@ -1406,6 +1405,7 @@ paths:
             type: string
           description: Assignment ID (e.g., 67f02df8020c2886cd44c047)
       requestBody:
+        description: Submit either a file (PDF, max 5MB) or a link for the assignment
         required: true
         content:
           multipart/form-data:
@@ -1415,8 +1415,15 @@ paths:
                 submission:
                   type: string
                   format: binary
-              required:
-                - submission
+                  description: PDF file upload (optional if link is provided)
+          application/json:
+            schema:
+              type: object
+              properties:
+                link:
+                  type: string
+                  example: https://drive.google.com/file/d/xyz
+                  description: URL to submission (optional if file is uploaded)
       responses:
         '200':
           description: Assignment submitted
@@ -1431,7 +1438,7 @@ paths:
                   assignment:
                     $ref: '#/components/schemas/Assignment'
         '400':
-          description: Submission file required
+          description: Submission file or link required, or already submitted
           content:
             application/json:
               schema:
@@ -1461,10 +1468,69 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  # Group Chats
+  /api/assignments/submissions:
+    get:
+      summary: Get submitted assignments by batch and course (Admin only)
+      tags:
+        - Assignments
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: batch
+          schema:
+            type: string
+            example: 2023
+          description: Filter by student batch (optional)
+        - in: query
+          name: course
+          schema:
+            type: string
+            example: Computer Science
+          description: Filter by course (optional)
+      responses:
+        '200':
+          description: List of assignments with submissions
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: array
+                    items:
+                      $ref: '#/components/schemas/SubmittedAssignment'
+                  - type: object
+                    properties:
+                      message:
+                        type: string
+                        example: No submissions found for the given filters
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/SubmittedAssignment'
+                        example: []
+        '401':
+          description: Authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Access denied (not admin)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # Group Chats (unchanged)
   /api/group-chats:
     post:
-      summary: 1. Create a new group chat
+      summary: Create a new group chat
       tags:
         - Group Chats
       security:
@@ -1513,7 +1579,7 @@ paths:
 
   /api/group-chats/{groupChatId}/join:
     post:
-      summary: 2. Join a group chat
+      summary: Join a group chat
       tags:
         - Group Chats
       security:
@@ -1559,7 +1625,7 @@ paths:
 
   /api/group-chats/{groupChatId}/messages:
     get:
-      summary: 3. Get messages in a group chat
+      summary: Get messages in a group chat
       tags:
         - Group Chats
       security:
@@ -1605,7 +1671,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
     post:
-      summary: 4. Send a message to a group chat (REST alternative)
+      summary: Send a message to a group chat (REST alternative)
       tags:
         - Group Chats
       security:
@@ -1663,7 +1729,7 @@ paths:
 
   /api/group-chats/{groupChatId}/leave:
     post:
-      summary: 5. Leave a group chat
+      summary: Leave a group chat
       tags:
         - Group Chats
       security:
@@ -1711,7 +1777,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  # Notes
+  # Notes (unchanged)
   /api/notes:
     post:
       summary: Create a new note or to-do
@@ -1857,6 +1923,7 @@ paths:
             type: string
           description: Note ID (e.g., 507f1f77bcf86cd799439011)
       requestBody:
+        required: false
         content:
           application/json:
             schema:
@@ -1941,6 +2008,50 @@ paths:
                 $ref: '#/components/schemas/Error'
         '404':
           description: Note not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # Chatbot (unchanged)
+  /api/chat:
+    post:
+      summary: Chat with the LMS chatbot
+      tags:
+        - Chatbot
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                  example: What are my assignments?
+              required:
+                - message
+      responses:
+        '200':
+          description: Chatbot response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Here are your assignments: Assignment 1 - Due 2025-04-15, Course Computer Science"
+        '401':
+          description: Authentication failed
           content:
             application/json:
               schema:
@@ -2046,6 +2157,10 @@ components:
                 type: string
                 format: date-time
                 example: 2025-04-05T12:00:00Z
+              submissionType:
+                type: string
+                enum: [file, link]
+                example: file
               submissionUrl:
                 type: string
                 example: https://lms-app1.s3.ap-south-1.amazonaws.com/submissions/1743762136007-submission.pdf
@@ -2061,6 +2176,86 @@ components:
         - dueDate
         - dueTime
         - createdBy
+
+    SubmittedAssignment:
+      type: object
+      properties:
+        _id:
+          type: string
+          example: 67f02df8020c2886cd44c047
+        title:
+          type: string
+          example: Assignment 1
+        course:
+          type: string
+          example: Computer Science
+        subject:
+          type: string
+          example: Programming
+        dueDate:
+          type: string
+          format: date
+          example: 2025-04-15
+        dueTime:
+          type: string
+          example: 14:30
+        submissions:
+          type: array
+          items:
+            type: object
+            properties:
+              student:
+                type: object
+                properties:
+                  _id:
+                    type: string
+                    example: 67ef9afa16917bcbf03f6dc0
+                  name:
+                    type: string
+                    example: John Doe
+                  email:
+                    type: string
+                    example: john.doe@example.com
+                  regNo:
+                    type: string
+                    example: CS12345
+                  batch:
+                    type: string
+                    example: 2023
+                  course:
+                    type: string
+                    example: Computer Science
+                required:
+                  - _id
+                  - name
+                  - email
+                  - regNo
+                  - batch
+                  - course
+              submissionType:
+                type: string
+                enum: [file, link]
+                example: file
+              submissionUrl:
+                type: string
+                example: https://lms-app1.s3.ap-south-1.amazonaws.com/submissions/1743762136007-submission.pdf
+              submittedAt:
+                type: string
+                format: date-time
+                example: 2025-04-05T12:00:00Z
+            required:
+              - student
+              - submissionType
+              - submissionUrl
+              - submittedAt
+      required:
+        - _id
+        - title
+        - course
+        - subject
+        - dueDate
+        - dueTime
+        - submissions
 
     GroupChat:
       type: object

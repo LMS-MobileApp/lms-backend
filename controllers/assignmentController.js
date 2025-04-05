@@ -1,19 +1,22 @@
 import Assignment from "../models/Assignment.js";
 import User from "../models/User.js";
-import { uploadToS3, getFileUrl } from "../services/awsService.js";
-import sendEmail from "../services/emailService.js";
+import { uploadFileToS3 } from "../utils/s3.js";
+import { sendSubmissionConfirmation } from "../services/emailService.js"; // Updated to your latest path
 
-const createAssignment = async (req, res) => {
+// Create a new assignment (Admin only) - POST /api/assignments
+export const createAssignment = async (req, res) => {
   const { title, course, subject, dueDate, dueTime, priority } = req.body;
-  const pdf = req.file;
+  const userId = req.user._id;
 
   try {
-    if (!pdf) {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Only admins can create assignments" });
+    }
+    if (!req.file) {
       return res.status(400).json({ message: "PDF file is required" });
     }
 
-    const uploadResult = await uploadToS3(pdf, "assignments");
-    const pdfUrl = getFileUrl(uploadResult.Key);
+    const pdfUrl = await uploadFileToS3(req.file, "assignments");
 
     const assignment = new Assignment({
       title,
@@ -21,115 +24,76 @@ const createAssignment = async (req, res) => {
       subject,
       dueDate,
       dueTime,
-      priority,
+      priority: priority || "medium",
+      status: "pending",
       pdfUrl,
-      createdBy: req.user._id,
+      createdBy: userId,
     });
 
     await assignment.save();
-
-    const students = await User.find({ course, role: "student" });
-    const studentEmails = students.map((student) => student.email);
-    if (studentEmails.length > 0) {
-      try {
-        await sendEmail(studentEmails, `New Assignment: ${title}`, {
-          message: `A new assignment "${title}" has been created for your course.`,
-          course,
-          subject,
-          dueDate,
-          dueTime,
-          priority,
-        });
-      } catch (emailErr) {
-        console.error("Failed to send email notification:", emailErr);
-      }
-    }
-
     res.status(201).json(assignment);
-  } catch (err) {
-    console.error("Create Assignment Error:", err);
-    res.status(500).json({ message: "Server error", error: err.message });
+  } catch (error) {
+    console.error("Create Assignment Error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
   }
 };
 
-const getAssignments = async (req, res) => {
+// Get all assignments - GET /api/assignments
+export const getAssignments = async (req, res) => {
   const { status, course, subject } = req.query;
 
   try {
-    let query = {};
-    if (req.user.role === "student") {
-      query = { course: req.user.course };
-    }
+    const query = {};
     if (status) query.status = status;
     if (course) query.course = course;
     if (subject) query.subject = subject;
 
     const assignments = await Assignment.find(query).populate("createdBy", "name");
-    res.json(assignments);
-  } catch (err) {
-    console.error("Get Assignments Error:", err);
-    res.status(500).json({ message: "Server error", error: err.message });
+    res.status(200).json(assignments);
+  } catch (error) {
+    console.error("Get Assignments Error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
   }
 };
 
-const updateAssignment = async (req, res) => {
+// Update an assignment (Admin only) - PUT /api/assignments/{id}
+export const updateAssignment = async (req, res) => {
   const { id } = req.params;
   const { title, course, subject, dueDate, dueTime, priority, status } = req.body;
 
   try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Only admins can update assignments" });
+    }
+
     const assignment = await Assignment.findById(id);
     if (!assignment) {
       return res.status(404).json({ message: "Assignment not found" });
     }
 
-    if (assignment.createdBy.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: "Not authorized" });
-    }
-
-    assignment.title = title || assignment.title;
-    assignment.course = course || assignment.course;
-    assignment.subject = subject || assignment.subject;
-    assignment.dueDate = dueDate || assignment.dueDate;
-    assignment.dueTime = dueTime || assignment.dueTime;
-    assignment.priority = priority || assignment.priority;
-    assignment.status = status || assignment.status;
+    if (title) assignment.title = title;
+    if (course) assignment.course = course;
+    if (subject) assignment.subject = subject;
+    if (dueDate) assignment.dueDate = dueDate;
+    if (dueTime) assignment.dueTime = dueTime;
+    if (priority) assignment.priority = priority;
+    if (status) assignment.status = status;
 
     await assignment.save();
-    res.json(assignment);
-  } catch (err) {
-    console.error("Update Assignment Error:", err);
-    res.status(500).json({ message: "Server error", error: err.message });
+    res.status(200).json(assignment);
+  } catch (error) {
+    console.error("Update Assignment Error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
   }
 };
 
-const deleteAssignment = async (req, res) => {
+// Delete an assignment (Admin only) - DELETE /api/assignments/{id}
+export const deleteAssignment = async (req, res) => {
   const { id } = req.params;
 
   try {
-    const assignment = await Assignment.findById(id);
-    if (!assignment) {
-      return res.status(404).json({ message: "Assignment not found" });
-    }
-
-    if (assignment.createdBy.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: "Not authorized" });
-    }
-
-    await assignment.remove();
-    res.json({ message: "Assignment deleted" });
-  } catch (err) {
-    console.error("Delete Assignment Error:", err);
-    res.status(500).json({ message: "Server error", error: err.message });
-  }
-};
-
-const submitAssignment = async (req, res) => {
-  const { id } = req.params;
-  const submission = req.file;
-
-  try {
-    if (!submission) {
-      return res.status(400).json({ message: "Submission file is required" });
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Only admins can delete assignments" });
     }
 
     const assignment = await Assignment.findById(id);
@@ -137,38 +101,124 @@ const submitAssignment = async (req, res) => {
       return res.status(404).json({ message: "Assignment not found" });
     }
 
-    const uploadResult = await uploadToS3(submission, "submissions");
-    const submissionUrl = getFileUrl(uploadResult.Key);
+    await assignment.deleteOne();
+    res.status(200).json({ message: "Assignment deleted" });
+  } catch (error) {
+    console.error("Delete Assignment Error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
 
-    assignment.submissions.push({
-      student: req.user._id,
+// Submit an assignment (Student only) - POST /api/assignments/{id}/submit
+export const submitAssignment = async (req, res) => {
+  const { id } = req.params;
+  const { link } = req.body;
+  const file = req.file;
+  const userId = req.user._id;
+  const userEmail = req.user.email;
+
+  try {
+    const assignment = await Assignment.findById(id);
+    if (!assignment) {
+      return res.status(404).json({ message: "Assignment not found" });
+    }
+    if (req.user.role !== "student") {
+      return res.status(403).json({ message: "Access denied (not student)" });
+    }
+
+    const existingSubmission = assignment.submissions.find(
+      (sub) => sub.student.toString() === userId.toString()
+    );
+    if (existingSubmission) {
+      return res.status(400).json({ message: "You have already submitted this assignment" });
+    }
+
+    let submissionUrl, submissionType;
+    if (file) {
+      submissionUrl = await uploadFileToS3(file, "submissions");
+      submissionType = "file";
+    } else if (link) {
+      if (!link.startsWith("http")) {
+        return res.status(400).json({ message: "Invalid link format" });
+      }
+      submissionUrl = link;
+      submissionType = "link";
+    } else {
+      return res.status(400).json({ message: "Submission file or link required" });
+    }
+
+    const submittedAt = new Date().toLocaleString();
+    const submission = {
+      student: userId,
+      submissionType,
       submissionUrl,
-    });
+      submittedAt: new Date(),
+    };
 
-    if (assignment.submissions.length === 1) {
-      assignment.status = "completed";
-    }
-
+    assignment.submissions.push(submission);
     await assignment.save();
 
-    try {
-      await sendEmail(req.user.email, `Assignment Submitted: ${assignment.title}`, {
-        message: `Your assignment "${assignment.title}" has been submitted successfully.`,
-        course: assignment.course,
-        subject: assignment.subject,
-        dueDate: assignment.dueDate,
-        dueTime: assignment.dueTime,
-        priority: assignment.priority,
-      });
-    } catch (emailErr) {
-      console.error("Failed to send submission email:", emailErr);
-    }
-
-    res.json({ message: "Assignment submitted", assignment });
+    await sendSubmissionConfirmation(userEmail, assignment.title, submittedAt);
+    res.status(200).json({ message: "Assignment submitted", assignment });
   } catch (err) {
     console.error("Submit Assignment Error:", err);
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
 
-export { createAssignment, getAssignments, updateAssignment, deleteAssignment, submitAssignment };
+// Get submitted assignments by batch and course (Admin only) - GET /api/assignments/submissions
+export const getSubmittedAssignments = async (req, res) => {
+  const { batch, course } = req.query;
+
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Only admins can view submitted assignments" });
+    }
+
+    const studentQuery = { role: "student" };
+    if (batch) studentQuery.batch = batch;
+    if (course) studentQuery.course = course;
+
+    const students = await User.find(studentQuery).select("_id");
+    const studentIds = students.map((student) => student._id);
+
+    const assignments = await Assignment.find({
+      "submissions.student": { $in: studentIds },
+    })
+      .populate("submissions.student", "name email regNo batch course")
+      .select("title course subject dueDate dueTime submissions");
+
+    if (assignments.length === 0) {
+      return res.status(200).json({ message: "No submissions found for the given filters", data: [] });
+    }
+
+    const formattedAssignments = assignments.map((assignment) => ({
+      _id: assignment._id,
+      title: assignment.title,
+      course: assignment.course,
+      subject: assignment.subject,
+      dueDate: assignment.dueDate,
+      dueTime: assignment.dueTime,
+      submissions: assignment.submissions
+        .filter((sub) => studentIds.some((id) => id.equals(sub.student._id)))
+        .map((sub) => ({
+          student: {
+            _id: sub.student._id,
+            name: sub.student.name,
+            email: sub.student.email,
+            regNo: sub.student.regNo,
+            batch: sub.student.batch,
+            course: sub.student.course,
+          },
+          submissionType: sub.submissionType,
+          submissionUrl: sub.submissionUrl,
+          submittedAt: sub.submittedAt,
+        })),
+    }));
+
+    res.status(200).json(formattedAssignments);
+  } catch (error) {
+    console.error("Get Submitted Assignments Error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
