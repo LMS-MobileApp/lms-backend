@@ -1,13 +1,23 @@
 import express from "express";
 import { auth } from "../middleware/authMiddleware.js";
-import { createGroupChat, joinGroupChat, getGroupChatMessages, sendGroupChatMessage, leaveGroupChat } from "../controllers/groupChatController.js";
+import {
+  createGroupChat,
+  joinGroupChat,
+  getGroupChatMessages,
+  sendGroupChatMessage,
+  leaveGroupChat,
+  getAllGroupChats,
+  getAllGroupChatsPublic,
+} from "../controllers/groupChatController.js";
 
 const router = express.Router();
 
-router.post("/", auth, createGroupChat);                    // 1. Create a group chat
-router.post("/:groupChatId/join", auth, joinGroupChat);     // 2. Join a group chat
-router.get("/:groupChatId/messages", auth, getGroupChatMessages);  // 3. Get messages
-router.post("/:groupChatId/messages", auth, sendGroupChatMessage); // 4. Send a message
-router.post("/:groupChatId/leave", auth, leaveGroupChat);   // 5. Leave a group chat
+router.post("/", auth, createGroupChat);
+router.post("/:groupChatId/join", auth, joinGroupChat);
+router.get("/:groupChatId/messages", auth, getGroupChatMessages);
+router.post("/:groupChatId/messages", auth, sendGroupChatMessage);
+router.post("/:groupChatId/leave", auth, leaveGroupChat);
+router.get("/", auth, getAllGroupChats);
+router.get("/all", auth, getAllGroupChatsPublic);
 
 export default router;

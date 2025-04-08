@@ -13,24 +13,19 @@ import assignmentRoutes from "./routes/assignmentRoutes.js";
 import groupChatRoutes from "./routes/groupChatRoutes.js";
 import noteRoutes from "./routes/noteRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
-
+import cors from "cors";
 
 const app = express();
 const PORT = config.PORT;
 
-// Create HTTP server for Socket.IO
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: {
-    origin: "*", // Adjust for production
-    methods: ["GET", "POST"],
-  },
+  cors: { origin: "*", methods: ["GET", "POST"] },
 });
 
-// Middleware
+app.use(cors({ origin: "*" }));
 app.use(express.json());
 
-// Socket.IO Connection
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
@@ -104,7 +99,6 @@ io.on("connection", (socket) => {
   });
 });
 
-// MongoDB Connection & Admin Seeding
 const seedAdmin = async () => {
   try {
     const adminExists = await User.findOne({ email: "admin@example.com" });
@@ -134,23 +128,19 @@ mongoose
   })
   .catch((err) => console.error("MongoDB connection error:", err));
 
-// Swagger Setup
 const swaggerDoc = yaml.load("./swagger.yaml");
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDoc));
 
-// Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/assignments", assignmentRoutes);
 app.use("/api/group-chats", groupChatRoutes);
 app.use("/api/notes", noteRoutes);
 app.use("/api/chat", chatRoutes);
 
-// Test Route
 app.get("/", (req, res) => {
   res.send("LMS Backend is running!");
 });
 
-// Start Server
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

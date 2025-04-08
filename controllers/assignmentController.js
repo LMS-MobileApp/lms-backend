@@ -1,7 +1,7 @@
 import Assignment from "../models/Assignment.js";
 import User from "../models/User.js";
 import { uploadFileToS3 } from "../utils/s3.js";
-import { sendSubmissionConfirmation } from "../services/emailService.js"; // Updated to your latest path
+import { sendSubmissionConfirmation } from "../services/emailService.js";
 
 // Create a new assignment (Admin only) - POST /api/assignments
 export const createAssignment = async (req, res) => {
@@ -38,7 +38,7 @@ export const createAssignment = async (req, res) => {
   }
 };
 
-// Get all assignments - GET /api/assignments
+// Get all assignments - GET /api/assignments (admin and student)
 export const getAssignments = async (req, res) => {
   const { status, course, subject } = req.query;
 
@@ -219,6 +219,64 @@ export const getSubmittedAssignments = async (req, res) => {
     res.status(200).json(formattedAssignments);
   } catch (error) {
     console.error("Get Submitted Assignments Error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// Get assignment calendar events - GET /api/assignments/calendar
+export const getAssignmentCalendar = async (req, res) => {
+  try {
+    const assignments = await Assignment.find({
+      $or: [
+        { createdBy: req.user._id }, // Admin sees their created assignments
+        { "submissions.student": req.user._id }, // Student sees their submitted assignments
+      ],
+    }).select("title dueDate dueTime status");
+
+    const calendarEvents = assignments.map((assignment) => ({
+      _id: assignment._id,
+      title: assignment.title,
+      date: assignment.dueDate,
+      time: assignment.dueTime,
+      status: assignment.status,
+    }));
+
+    res.status(200).json(calendarEvents);
+  } catch (error) {
+    console.error("Get Assignment Calendar Error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// Get monthly completed assignment stats - GET /api/assignments/stats/monthly-completed
+export const getMonthlyCompletedStats = async (req, res) => {
+  try {
+    const currentYear = new Date().getFullYear();
+    const assignments = await Assignment.find({
+      status: "completed",
+      dueDate: {
+        $gte: new Date(currentYear, 0, 1), // Start of year
+        $lte: new Date(currentYear, 11, 31), // End of year
+      },
+      $or: [
+        { createdBy: req.user._id }, // Admin stats
+        { "submissions.student": req.user._id }, // Student stats
+      ],
+    });
+
+    // Aggregate by month
+    const monthlyStats = Array(12).fill(0); // Jan-Dec
+    assignments.forEach((assignment) => {
+      const month = new Date(assignment.dueDate).getMonth(); // 0-11
+      monthlyStats[month]++;
+    });
+
+    res.status(200).json({
+      labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+      data: monthlyStats,
+    });
+  } catch (error) {
+    console.error("Get Monthly Completed Stats Error:", error);
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };

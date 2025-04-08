@@ -1,6 +1,6 @@
 import express from "express";
 import multer from "multer";
-import { auth, restrictTo } from "../middleware/authMiddleware.js"; // Corrected import
+import { auth, restrictTo } from "../middleware/authMiddleware.js";
 import {
   createAssignment,
   getAssignments,
@@ -8,6 +8,8 @@ import {
   deleteAssignment,
   submitAssignment,
   getSubmittedAssignments,
+  getAssignmentCalendar,
+  getMonthlyCompletedStats,
 } from "../controllers/assignmentController.js";
 
 const router = express.Router();
@@ -25,28 +27,16 @@ const upload = multer({
   },
 });
 
-// Create a new assignment (Admin only)
+// Existing routes
 router.post("/", auth, restrictTo("admin"), upload.single("pdf"), createAssignment);
-
-// Get all assignments (Authenticated users)
 router.get("/", auth, getAssignments);
-
-// Update an assignment (Admin only)
 router.put("/:id", auth, restrictTo("admin"), updateAssignment);
-
-// Delete an assignment (Admin only)
 router.delete("/:id", auth, restrictTo("admin"), deleteAssignment);
-
-// Submit an assignment (Student only)
-router.post(
-  "/:id/submit",
-  auth,
-  restrictTo("student"),
-  upload.single("submission"),
-  submitAssignment
-);
-
-// Get submitted assignments by batch and course (Admin only)
+router.post("/:id/submit", auth, restrictTo("student"), upload.single("submission"), submitAssignment);
 router.get("/submissions", auth, restrictTo("admin"), getSubmittedAssignments);
+
+// New routes - explicitly defined
+router.get("/calendar", auth, getAssignmentCalendar);
+router.get("/stats/monthly-completed", auth, getMonthlyCompletedStats);
 
 export default router;
