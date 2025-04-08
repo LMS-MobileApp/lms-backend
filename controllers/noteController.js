@@ -2,23 +2,34 @@ import Note from "../models/Note.js";
 import Assignment from "../models/Assignment.js";
 
 const createNote = async (req, res) => {
-  const { assignment, content, type } = req.body;
+  console.log("Raw req.body:", req.body); // Debug
+  const { assignmentTitle, content, type } = req.body;
 
   try {
-    const assignmentExists = await Assignment.findById(assignment);
+    if (!assignmentTitle) {
+      return res.status(400).json({ message: "Assignment title is required" });
+    }
+
+    const trimmedTitle = assignmentTitle.trim();
+    console.log("Looking for assignment with title:", trimmedTitle);
+    const assignmentExists = await Assignment.findOne({ 
+      title: { $regex: new RegExp(`^${trimmedTitle}$`, "i") }
+    });
+    console.log("Assignment found:", assignmentExists);
     if (!assignmentExists) {
       return res.status(404).json({ message: "Assignment not found" });
     }
 
     const note = new Note({
-      assignment,
+      assignment: assignmentExists._id,
       user: req.user._id,
       content,
-      type: type || "note", // Default to "note" if not provided
+      type: type || "note",
     });
 
     await note.save();
-    res.status(201).json(note);
+    const populatedNote = await Note.findById(note._id).populate("assignment", "title");
+    res.status(201).json(populatedNote);
   } catch (err) {
     console.error("Create Note Error:", err);
     res.status(500).json({ message: "Server error", error: err.message });
@@ -26,7 +37,7 @@ const createNote = async (req, res) => {
 };
 
 const getUserNotes = async (req, res) => {
-  const { assignmentId } = req.query; // Optional filter by assignment
+  const { assignmentId } = req.query;
 
   try {
     const query = { user: req.user._id };
@@ -78,7 +89,8 @@ const updateNote = async (req, res) => {
     note.completed = completed !== undefined ? completed : note.completed;
 
     await note.save();
-    res.json(note);
+    const populatedNote = await Note.findById(noteId).populate("assignment", "title");
+    res.json(populatedNote);
   } catch (err) {
     console.error("Update Note Error:", err);
     res.status(500).json({ message: "Server error", error: err.message });
@@ -97,7 +109,7 @@ const deleteNote = async (req, res) => {
       return res.status(403).json({ message: "Not authorized" });
     }
 
-    await note.remove();
+    await Note.findByIdAndDelete(noteId);
     res.json({ message: "Note deleted successfully" });
   } catch (err) {
     console.error("Delete Note Error:", err);
